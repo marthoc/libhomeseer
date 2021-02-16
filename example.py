@@ -34,17 +34,21 @@ async def main():
         print(f"Error connecting to HomeSeer at {host}")
         return
 
-    # Not all HomeSeer devices are supported in libhomeseer
-    # Only devices with device_type_strings in libhomeseer/const.py are supported
+    # Not all HomeSeer devices are fully supported in libhomeseer yet
+    # Devices with as-yet unsupported control pairs will be reported in debug logging
     # Device attributes (ref, value, status, etc.) are represented as properties of the device object
+    # Certain device classes feature methods to control the device based on its detected Control Pairs:
+    # HomeSeerSwitchableDevice - device.on() and device.off()
+    # HomeSeerDimmableDevice - device.on(), device.off(), and device.dim(0-100)
+    # HomeSeerLockableDevice - device.lock() and device.unlock()
     print()
-    print("---------------------------")
-    print("Supported HomeSeer Devices:")
-    print("---------------------------")
+    print("-----------------")
+    print("HomeSeer Devices:")
+    print("-----------------")
     for device in homeseer.devices.values():
         print(
             f"{device.location2} {device.location} {device.name} "
-            f"(Type: {device.device_type_string}, Ref: {device.ref})"
+            f"(Type: {device.device_type_string}, Ref: {device.ref}) (libhomeseer type: {type(device)})"
         )
 
     # All HomeSeer events will be represented as an event object

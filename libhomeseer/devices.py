@@ -3,52 +3,20 @@
 import logging
 from typing import Callable, Optional, Union
 
-from .const import (
-    DEVICE_ZWAVE_BARRIER_OPERATOR,
-    DEVICE_ZWAVE_BATTERY,
-    DEVICE_ZWAVE_CENTRAL_SCENE,
-    DEVICE_ZWAVE_DOOR_LOCK,
-    DEVICE_ZWAVE_DOOR_LOCK_LOGGING,
-    DEVICE_ZWAVE_ELECTRIC_METER,
-    DEVICE_ZWAVE_FAN_STATE,
-    DEVICE_ZWAVE_LUMINANCE,
-    DEVICE_ZWAVE_OPERATING_STATE,
-    DEVICE_ZWAVE_RELATIVE_HUMIDITY,
-    DEVICE_ZWAVE_SENSOR_BINARY,
-    DEVICE_ZWAVE_SENSOR_MULTILEVEL,
-    DEVICE_ZWAVE_SWITCH,
-    DEVICE_ZWAVE_SWITCH_BINARY,
-    DEVICE_ZWAVE_SWITCH_MULTILEVEL,
-    DEVICE_ZWAVE_TEMPERATURE,
-)
-
-BASIC_DEVICES = [
-    DEVICE_ZWAVE_BATTERY,
-    DEVICE_ZWAVE_CENTRAL_SCENE,
-    DEVICE_ZWAVE_DOOR_LOCK_LOGGING,
-    DEVICE_ZWAVE_ELECTRIC_METER,
-    DEVICE_ZWAVE_FAN_STATE,
-    DEVICE_ZWAVE_LUMINANCE,
-    DEVICE_ZWAVE_OPERATING_STATE,
-    DEVICE_ZWAVE_RELATIVE_HUMIDITY,
-    DEVICE_ZWAVE_SENSOR_BINARY,
-    DEVICE_ZWAVE_SENSOR_MULTILEVEL,
-    DEVICE_ZWAVE_TEMPERATURE,
-]
-DIMMABLE_DEVICES = [DEVICE_ZWAVE_SWITCH_MULTILEVEL]
-LOCKABLE_DEVICES = [DEVICE_ZWAVE_DOOR_LOCK]
-SWITCHABLE_DEVICES = [
-    DEVICE_ZWAVE_BARRIER_OPERATOR,
-    DEVICE_ZWAVE_SWITCH,
-    DEVICE_ZWAVE_SWITCH_BINARY,
-]
-
 CONTROL_USE_ON = 1
 CONTROL_USE_OFF = 2
+CONTROL_USE_DIM = 3
 CONTROL_USE_LOCK = 18
 CONTROL_USE_UNLOCK = 19
 CONTROL_LABEL_LOCK = "Lock"
 CONTROL_LABEL_UNLOCK = "Unlock"
+
+SUPPORT_STATUS = 0
+SUPPORT_ON = 1
+SUPPORT_OFF = 2
+SUPPORT_LOCK = 4
+SUPPORT_UNLOCK = 8
+SUPPORT_DIM = 16
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,6 +75,25 @@ class HomeSeerStatusDevice:
         """Return the last change of the device."""
         return self._raw_data["last_change"]
 
+    @property
+    def relationship(self) -> int:
+        """
+        Return the relationship of the device.
+        2 = Root device (other devices may be part of this physical device)
+        3 = Standalone (this is the only device that represents this physical device)
+        4 = Child (this device is part of a group of devices that represent the physical device)
+        """
+        return int(self._raw_data["relationship"])
+
+    @property
+    def associated_devices(self) -> list:
+        """
+        A list of device reference numbers that are associated with this device.
+        If the device is a Root device, the list contains the device reference numbers of the child devices.
+        If the device is a Child device, the list will contain one device reference number of the root device.
+        """
+        return self._raw_data["associated_devices"]
+
     def register_update_callback(
         self, callback: Callable, suppress_on_connection: bool = False
     ) -> None:
@@ -132,44 +119,15 @@ class HomeSeerStatusDevice:
             self._update_callback()
 
 
-class HomeSeerControllableDevice(HomeSeerStatusDevice):
-    """Base representation for all HomeSeer devices with controls."""
+class HomeSeerSwitchableDevice(HomeSeerStatusDevice):
+    """Representation of a HomeSeer device that has On and Off control pairs."""
 
-    def __init__(self, raw_data: dict, control_data: dict, request: Callable) -> None:
+    def __init__(
+        self, raw_data: dict, request: Callable, on_value: int, off_value: int
+    ) -> None:
         super().__init__(raw_data, request)
-        self._on_value = None
-        self._off_value = None
-        self._lock_value = None
-        self._unlock_value = None
-        self._get_control_values(control_data)
-
-    def _get_control_values(self, control_data: dict) -> None:
-        """Parses control data from the HomeSeer API to populate control values for the device."""
-        for item in control_data:
-            if item["ref"] == self.ref:
-                control_pairs = item["ControlPairs"]
-                for pair in control_pairs:
-                    control_use = pair["ControlUse"]
-                    control_label = pair["Label"]
-                    if control_use == CONTROL_USE_ON:
-                        self._on_value = pair["ControlValue"]
-                    elif control_use == CONTROL_USE_OFF:
-                        self._off_value = pair["ControlValue"]
-                    elif (
-                        control_use == CONTROL_USE_LOCK
-                        or control_label == CONTROL_LABEL_LOCK
-                    ):
-                        self._lock_value = pair["ControlValue"]
-                    elif (
-                        control_use == CONTROL_USE_UNLOCK
-                        or control_label == CONTROL_LABEL_UNLOCK
-                    ):
-                        self._unlock_value = pair["ControlValue"]
-                break
-
-
-class HomeSeerSwitchableDevice(HomeSeerControllableDevice):
-    """Representation of a HomeSeer device that can be switched on and off."""
+        self._on_value = on_value
+        self._off_value = off_value
 
     @property
     def is_on(self) -> bool:
@@ -198,10 +156,7 @@ class HomeSeerSwitchableDevice(HomeSeerControllableDevice):
 
 
 class HomeSeerDimmableDevice(HomeSeerSwitchableDevice):
-    """
-    Representation of a HomeSeer device that can be dimmed
-    (i.e. set to an intermediate level between on and off).
-    """
+    """Representation of a HomeSeer device that has a Dim control pair."""
 
     @property
     def dim_percent(self) -> float:
@@ -220,8 +175,15 @@ class HomeSeerDimmableDevice(HomeSeerSwitchableDevice):
         await self._request("get", params=params)
 
 
-class HomeSeerLockableDevice(HomeSeerControllableDevice):
-    """Representation of a HomeSeer device that can be locked and unlocked."""
+class HomeSeerLockableDevice(HomeSeerStatusDevice):
+    """Representation of a HomeSeer device that has Lock and Unlock control pairs."""
+
+    def __init__(
+        self, raw_data: dict, request: Callable, lock_value: int, unlock_value: int
+    ) -> None:
+        super().__init__(raw_data, request)
+        self._lock_value = lock_value
+        self._unlock_value = unlock_value
 
     @property
     def is_locked(self) -> bool:
@@ -259,17 +221,70 @@ def get_device(
         HomeSeerSwitchableDevice,
     ]
 ]:
-    """Return an appropriate HomeSeer device object based on its device_type_string."""
-    device_type_string = raw_data["device_type_string"]
-    if device_type_string in BASIC_DEVICES:
+    """
+    Parses control_data to return an appropriate device object
+    based on the control pairs detected for the device.
+    On/Off = HomeSeerSwitchableDevice
+    On/Off/Dim = HomeSeerDimmableDevice
+    Lock/Unlock = HomeSeerLockableDevice
+    other = HomeSeerStatusDevice
+    """
+    on_value = None
+    off_value = None
+    lock_value = None
+    unlock_value = None
+    control_pairs = None
+    supported_features = SUPPORT_STATUS
+    for item in control_data:
+        if item["ref"] == raw_data["ref"]:
+            control_pairs = item["ControlPairs"]
+            for pair in control_pairs:
+                control_use = pair["ControlUse"]
+                control_label = pair["Label"]
+                if control_use == CONTROL_USE_ON:
+                    on_value = pair["ControlValue"]
+                    supported_features |= SUPPORT_ON
+                elif control_use == CONTROL_USE_OFF:
+                    off_value = pair["ControlValue"]
+                    supported_features |= SUPPORT_OFF
+                elif (
+                    control_use == CONTROL_USE_LOCK
+                    or control_label == CONTROL_LABEL_LOCK
+                ):
+                    lock_value = pair["ControlValue"]
+                    supported_features |= SUPPORT_LOCK
+                elif (
+                    control_use == CONTROL_USE_UNLOCK
+                    or control_label == CONTROL_LABEL_UNLOCK
+                ):
+                    unlock_value = pair["ControlValue"]
+                    supported_features |= SUPPORT_UNLOCK
+                elif control_use == CONTROL_USE_DIM:
+                    supported_features |= SUPPORT_DIM
+            break
+
+    if supported_features == SUPPORT_ON | SUPPORT_OFF:
+        return HomeSeerSwitchableDevice(
+            raw_data, request, on_value=on_value, off_value=off_value
+        )
+
+    elif supported_features == SUPPORT_ON | SUPPORT_OFF | SUPPORT_DIM:
+        return HomeSeerDimmableDevice(
+            raw_data, request, on_value=on_value, off_value=off_value
+        )
+
+    elif supported_features == SUPPORT_LOCK | SUPPORT_UNLOCK:
+        return HomeSeerLockableDevice(
+            raw_data, request, lock_value=lock_value, unlock_value=unlock_value
+        )
+
+    else:
+        _LOGGER.debug(
+            f"Failed to automatically detect device Control Pairs for device ref {raw_data['ref']}; "
+            f"creating a status-only device. "
+            f"If this device has controls, open an issue on the libhomeseer repo "
+            f"with the following information to request support for this device: "
+            f"RAW: ({raw_data}) "
+            f"CONTROL: ({control_pairs})."
+        )
         return HomeSeerStatusDevice(raw_data, request)
-    elif device_type_string in DIMMABLE_DEVICES:
-        return HomeSeerDimmableDevice(raw_data, control_data, request)
-    elif device_type_string in LOCKABLE_DEVICES:
-        return HomeSeerLockableDevice(raw_data, control_data, request)
-    elif device_type_string in SWITCHABLE_DEVICES:
-        return HomeSeerSwitchableDevice(raw_data, control_data, request)
-    _LOGGER.debug(
-        f"HomeSeer device type not supported by libhomeseer: {device_type_string} ({raw_data})"
-    )
-    return None
