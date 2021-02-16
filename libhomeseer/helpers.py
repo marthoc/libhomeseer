@@ -5,11 +5,17 @@ from datetime import datetime, timezone
 from string import digits
 from typing import Optional
 
+HS_UNIT_A = "A"
+HS_UNIT_AMPERES = "Amperes"
 HS_UNIT_CELSIUS = "C"
 HS_UNIT_FAHRENHEIT = "F"
+HS_UNIT_KW = "kW"
 HS_UNIT_KWH = "kW Hours"
 HS_UNIT_LUX = "Lux"
 HS_UNIT_PERCENTAGE = "%"
+HS_UNIT_V = "V"
+HS_UNIT_VOLTS = "Volts"
+HS_UNIT_W = "W"
 HS_UNIT_WATTS = "Watts"
 
 HS_NULL_DATE = "-62135596800000"
@@ -41,16 +47,28 @@ def get_datetime_from_last_change(last_change: str) -> Optional[datetime]:
 def get_uom_from_status(status: str) -> Optional[str]:
     """Parses a status to return a unit of measure, or None if no unit can be parsed."""
     uom = None
-    if HS_UNIT_CELSIUS in status:
+    if HS_UNIT_AMPERES in status:
+        uom = HS_UNIT_AMPERES
+    elif HS_UNIT_A in status:
+        uom = HS_UNIT_A
+    elif HS_UNIT_CELSIUS in status:
         uom = HS_UNIT_CELSIUS
-    if HS_UNIT_FAHRENHEIT in status:
+    elif HS_UNIT_FAHRENHEIT in status:
         uom = HS_UNIT_FAHRENHEIT
-    if HS_UNIT_KWH in status:
+    elif HS_UNIT_KWH in status:
         uom = HS_UNIT_KWH
-    if HS_UNIT_LUX in status:
+    elif HS_UNIT_KW in status:
+        uom = HS_UNIT_KW
+    elif HS_UNIT_LUX in status:
         uom = HS_UNIT_LUX
-    if HS_UNIT_PERCENTAGE in status:
+    elif HS_UNIT_PERCENTAGE in status:
         uom = HS_UNIT_PERCENTAGE
-    if HS_UNIT_WATTS in status:
+    elif HS_UNIT_VOLTS in status:
+        uom = HS_UNIT_VOLTS
+    elif HS_UNIT_V in status:
+        uom = HS_UNIT_V
+    elif HS_UNIT_WATTS in status:
         uom = HS_UNIT_WATTS
+    elif HS_UNIT_W in status:
+        uom = HS_UNIT_W
     return uom
