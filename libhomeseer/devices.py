@@ -3,6 +3,8 @@
 import logging
 from typing import Callable, Optional, Union
 
+from .const import RELATIONSHIP_CHILD, RELATIONSHIP_ROOT, RELATIONSHIP_STANDALONE
+
 CONTROL_USE_ON = 1
 CONTROL_USE_OFF = 2
 CONTROL_USE_DIM = 3
@@ -83,7 +85,14 @@ class HomeSeerStatusDevice:
         3 = Standalone (this is the only device that represents this physical device)
         4 = Child (this device is part of a group of devices that represent the physical device)
         """
-        return int(self._raw_data["relationship"])
+        relationship = int(self._raw_data["relationship"])
+        if relationship == RELATIONSHIP_ROOT:
+            return RELATIONSHIP_ROOT
+        elif relationship == RELATIONSHIP_CHILD:
+            return RELATIONSHIP_CHILD
+        elif relationship == RELATIONSHIP_STANDALONE:
+            return RELATIONSHIP_STANDALONE
+        return relationship
 
     @property
     def associated_devices(self) -> list:
