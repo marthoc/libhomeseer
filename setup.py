@@ -4,7 +4,7 @@ long_description = open('README.md').read()
 
 setuptools.setup(
     name="libhomeseer",
-    version="1.2.1",
+    version="1.2.2",
     author="Mark Coombes",
     author_email="mark@markcoombes.ca",
     description="Python3 async library for interacting with HomeSeer HS3 and HS4 via JSON and ASCII",

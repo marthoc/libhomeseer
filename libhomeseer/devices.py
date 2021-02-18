@@ -68,9 +68,11 @@ class HomeSeerStatusDevice:
         return self._raw_data["status"]
 
     @property
-    def device_type_string(self) -> str:
-        """Return the device type string of the device."""
-        return self._raw_data["device_type_string"]
+    def device_type_string(self) -> Optional[str]:
+        """Return the device type string of the device, or None for no type string (e.g. virtual device)."""
+        if self._raw_data["device_type_string"]:
+            return self._raw_data["device_type_string"]
+        return None
 
     @property
     def last_change(self) -> str:
@@ -102,6 +104,16 @@ class HomeSeerStatusDevice:
         If the device is a Child device, the list will contain one device reference number of the root device.
         """
         return self._raw_data["associated_devices"]
+
+    @property
+    def interface_name(self) -> Optional[str]:
+        """
+        Return the name of the interface providing the device, or None for no interface (e.g. virtual device).
+        Note: this parameter is present in the JSON API data but undocumented.
+        """
+        if self._raw_data["interface_name"]:
+            return self._raw_data["interface_name"]
+        return None
 
     def register_update_callback(
         self, callback: Callable, suppress_on_connection: bool = False
