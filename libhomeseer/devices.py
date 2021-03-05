@@ -10,6 +10,7 @@ CONTROL_USE_OFF = 2
 CONTROL_USE_DIM = 3
 CONTROL_USE_LOCK = 18
 CONTROL_USE_UNLOCK = 19
+CONTROL_USE_FAN = 23
 CONTROL_LABEL_LOCK = "Lock"
 CONTROL_LABEL_UNLOCK = "Unlock"
 
@@ -19,6 +20,7 @@ SUPPORT_OFF = 2
 SUPPORT_LOCK = 4
 SUPPORT_UNLOCK = 8
 SUPPORT_DIM = 16
+SUPPORT_FAN = 32
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -196,6 +198,26 @@ class HomeSeerDimmableDevice(HomeSeerSwitchableDevice):
         await self._request("get", params=params)
 
 
+class HomeSeerFanDevice(HomeSeerSwitchableDevice):
+    """Representation of a HomeSeer device that has a Fan or DimFan control pair."""
+
+    @property
+    def speed_percent(self) -> float:
+        """Returns a number from 0 to 1 representing the current speed percentage."""
+        return self.value / self._on_value
+
+    async def speed(self, percent: int) -> None:
+        """Set the speed of the device on a scale from 0 to 100."""
+        if percent < 0 or percent > 100:
+            raise ValueError("Percent must be an integer from 0 to 100")
+
+        value = int(self._on_value * (percent / 100))
+
+        params = {"request": "controldevicebyvalue", "ref": self.ref, "value": value}
+
+        await self._request("get", params=params)
+
+
 class HomeSeerLockableDevice(HomeSeerStatusDevice):
     """Representation of a HomeSeer device that has Lock and Unlock control pairs."""
 
@@ -237,6 +259,7 @@ def get_device(
 ) -> Optional[
     Union[
         HomeSeerDimmableDevice,
+        HomeSeerFanDevice,
         HomeSeerLockableDevice,
         HomeSeerStatusDevice,
         HomeSeerSwitchableDevice,
@@ -247,6 +270,7 @@ def get_device(
     based on the control pairs detected for the device.
     On/Off = HomeSeerSwitchableDevice
     On/Off/Dim = HomeSeerDimmableDevice
+    On/Off/Fan = HomeSeerFanDevice
     Lock/Unlock = HomeSeerLockableDevice
     other = HomeSeerStatusDevice
     """
@@ -282,6 +306,8 @@ def get_device(
                     supported_features |= SUPPORT_UNLOCK
                 elif control_use == CONTROL_USE_DIM:
                     supported_features |= SUPPORT_DIM
+                elif control_use == CONTROL_USE_FAN:
+                    supported_features |= SUPPORT_FAN
             break
 
     if supported_features == SUPPORT_ON | SUPPORT_OFF:
@@ -291,6 +317,11 @@ def get_device(
 
     elif supported_features == SUPPORT_ON | SUPPORT_OFF | SUPPORT_DIM:
         return HomeSeerDimmableDevice(
+            raw_data, request, on_value=on_value, off_value=off_value
+        )
+
+    elif supported_features == SUPPORT_ON | SUPPORT_OFF | SUPPORT_FAN:
+        return HomeSeerFanDevice(
             raw_data, request, on_value=on_value, off_value=off_value
         )
 
